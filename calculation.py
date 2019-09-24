@@ -30,7 +30,14 @@ class MapFn:
                     if py == 0:
                         break
             result += yi * py
+        if result > 1:
+            result = 1
+        elif result < 0:
+            result = 0
         return result
+
+    def get_points(self):
+        return self.points
 
     def add_point(self, x, y):
         self.points.append(Point(x, y))
