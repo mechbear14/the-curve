@@ -30,52 +30,48 @@ class Handle:
 
 
 class Ruler:
-    def __init__(self, canvas):
-        self.canvas = canvas
-        self.width = canvas.winfo_width()
-        self.height = canvas.winfo_height()
+    def __init__(self, normal_canvas, mapped_canvas):
+        self.normal_canvas = normal_canvas
+        self.mapped_canvas = mapped_canvas
         self.normal = np.arange(0.0, 1.01, 0.05)
-        self.mapped = None
-        self.horizontal = self.width > self.height
+        self.mapped = self.normal
+        self.render_horizontal(self.normal_canvas, self.normal)
+        self.render_vertical(self.mapped_canvas, self.mapped)
 
     def map(self, map_func):
         f = np.vectorize(map_func)
         self.mapped = f(self.normal)
 
-    def render_horizontal(self, array):
-        y_loc = self.height / 2
+    def render_horizontal(self, canvas, array):
+        width, height = canvas.winfo_width(), canvas.winfo_height()
+        canvas.create_rectangle((0, 0, width, height), fill="#ffffff")
+        y_loc = height / 2
         for line_id in range(21):
-            x_loc = array[line_id] * self.width
+            x_loc = array[line_id] * width
             if line_id % 5 == 0:
                 coord = (x_loc, y_loc)
-                self.canvas.create_text(coord, text=line_id * 5, fill="#808080")
+                canvas.create_text(coord, text=line_id * 5, fill="#808080")
             else:
                 coord = (x_loc, y_loc - 2, x_loc, y_loc + 2)
-                self.canvas.create_line(coord, width=2, fill="#808080")
+                canvas.create_line(coord, width=2, fill="#808080")
 
-    def render_vertical(self, array):
-        x_loc = self.width / 2
+    def render_vertical(self, canvas, array):
+        width, height = canvas.winfo_width(), canvas.winfo_height()
+        canvas.create_rectangle((0, 0, width, height), fill="#ffffff")
+        x_loc = width / 2
         for line_id in range(21):
-            y_loc = (1 - array[line_id]) * self.height
+            y_loc = (1 - array[line_id]) * height
             if line_id % 5 == 0:
                 coord = (x_loc, y_loc)
-                self.canvas.create_text(coord, text=line_id * 5, fill="#808080")
+                canvas.create_text(coord, text=line_id * 5, fill="#808080")
             else:
                 coord = (x_loc - 2, y_loc, x_loc + 2, y_loc)
-                self.canvas.create_line(coord, width=2, fill="#808080")
+                canvas.create_line(coord, width=2, fill="#808080")
 
     def update(self, map_func):
         self.map(map_func)
-        self.canvas.delete(tk.ALL)
-        self.render()
-
-    def render(self):
-        self.canvas.create_rectangle((0, 0, self.width, self.height), fill="#ffffff")
-        to_render = self.normal if self.mapped is None else self.mapped
-        if self.horizontal:
-            self.render_horizontal(to_render)
-        else:
-            self.render_vertical(to_render)
+        self.mapped_canvas.delete(tk.ALL)
+        self.render_vertical(self.mapped_canvas, self.mapped)
 
 
 class Canvas:
@@ -183,6 +179,7 @@ class Canvas:
         on_handle = self.on_which_handle(event.x, event.y)
         if on_handle > -1:
             self.drop_handle(on_handle)
+        self.update()
 
     def add_handle(self, x, y):
         new_handle = Handle(self.ref, x, y)
@@ -207,11 +204,17 @@ class Canvas:
             self.ref.coords(self.curve_refs[i], coord)
 
     def drop_handle(self, i):
-        self.handles[i].destroy()
-        self.handles.remove(self.handles[i])
-        self.map.drop_point(i)
-        self.move_curve()
+        if len(self.handles) > 2:
+            self.handles[i].destroy()
+            self.handles.remove(self.handles[i])
+            self.map.drop_point(i)
+            self.move_curve()
 
     def update(self):
         for a in self.attached:
             a.update(self.map.map)
+
+
+class ImageBox:
+    def __init__(self):
+        pass
