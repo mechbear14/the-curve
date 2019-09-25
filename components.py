@@ -1,4 +1,6 @@
 import numpy as np
+from math import fabs
+import tkinter as tk
 
 
 class Handle:
@@ -6,12 +8,8 @@ class Handle:
         self.canvas = canvas
         self.x = x
         self.y = y
+        self.ref = None
 
-    def update(self, x, y):
-        if x is not None:
-            self.x = x
-        if y is not None:
-            self.y = y
         self.render()
 
     def get(self):
@@ -19,7 +17,16 @@ class Handle:
 
     def render(self):
         coord = (self.x - 5, self.y - 5, self.x + 5, self.y + 5)
-        self.canvas.create_rectangle(coord, fill="", outline="#c80000", width="2")
+        self.ref = self.canvas.create_rectangle(coord, fill="", outline="#c80000", width="2")
+
+    def move(self, x, y):
+        self.x = x
+        self.y = y
+        coord = (x - 5, y - 5, x + 5, y + 5)
+        self.canvas.coords(self.ref, coord)
+
+    def destroy(self):
+        self.canvas.delete(self.ref)
 
 
 class Ruler:
@@ -57,6 +64,11 @@ class Ruler:
                 coord = (x_loc - 2, y_loc, x_loc + 2, y_loc)
                 self.canvas.create_line(coord, width=2, fill="#808080")
 
+    def update(self, map_func):
+        self.map(map_func)
+        self.canvas.delete(tk.ALL)
+        self.render()
+
     def render(self):
         self.canvas.create_rectangle((0, 0, self.width, self.height), fill="#ffffff")
         to_render = self.normal if self.mapped is None else self.mapped
@@ -73,11 +85,22 @@ class Canvas:
         self.height = self.ref.winfo_height() - 2
         self.map = map_func
         self.handles = list(map(self.point2handle, self.map.get_points()))
+        self.curve_refs = []
         self.dragging = False
+        self.dragging_handle_id = None
+        self.attached = []
 
         self.draw_grid()
         self.draw_curve()
         self.draw_handles()
+
+        self.ref.bind("<Button-1>", self.on_mouse_down)
+        self.ref.bind("<Button-3>", self.on_mouse_right)
+        self.ref.bind("<ButtonRelease-1>", self.on_mouse_up)
+
+    def attach(self, obj):
+        self.attached.append(obj)
+        self.update()
 
     def canv2point(self, x, y):
         px = x / self.width
@@ -114,29 +137,81 @@ class Canvas:
             p1 = self.point2canv(xs[i], ys[i])
             p2 = self.point2canv(xs[i+1], ys[i+1])
             coord = (*p1, *p2)
-            self.ref.create_line(coord, fill="#800080", width=3)
+            self.curve_refs.append(self.ref.create_line(coord, fill="#800080", width=3))
 
     def draw_handles(self):
         for handle in self.handles:
             handle.render()
 
-    def is_on_curve(self):
-        pass
+    def is_on_curve(self, mx, my):
+        x, y = self.canv2point(mx, my)
+        yy = self.map.map(x)
+        cx, cy = self.point2canv(x, yy)
+        return fabs(my - cy) < 10
 
-    def is_on_handle(self):
-        pass
+    def on_which_handle(self, mx, my):
+        for i, handle in enumerate(self.handles):
+            hx, hy = handle.get()
+            on_this_handle = fabs(mx - hx) < 10 and fabs(my - hy) < 10
+            if on_this_handle:
+                return i
+        return -1
 
-    def on_mouse_down(self):
-        pass
+    def on_mouse_down(self, event):
+        on_curve = self.is_on_curve(event.x, event.y)
+        on_handle = self.on_which_handle(event.x, event.y)
+        if on_curve:
+            if on_handle > -1:
+                self.dragging_handle_id = on_handle
+            else:
+                self.dragging_handle_id = self.add_handle(event.x, event.y)
 
-    def on_mouse_move(self):
-        pass
+            self.dragging = True
+            self.ref.bind("<B1-Motion>", self.on_mouse_move)
 
-    def on_mouse_up(self):
-        pass
+    def on_mouse_move(self, event):
+        self.move_handle(self.dragging_handle_id, event.x, event.y)
+        self.move_curve()
+        self.update()
 
-    def on_mouse_right(self):
-        pass
+    def on_mouse_up(self, event):
+        self.dragging = False
+        self.dragging_handle_id = None
+        self.ref.unbind("<B1-Motion>")
 
-    def update(self, ruler):
-        pass
+    def on_mouse_right(self, event):
+        on_handle = self.on_which_handle(event.x, event.y)
+        if on_handle > -1:
+            self.drop_handle(on_handle)
+
+    def add_handle(self, x, y):
+        new_handle = Handle(self.ref, x, y)
+        self.handles.append(new_handle)
+        new_point = self.canv2point(x, y)
+        self.map.add_point(*new_point)
+        return len(self.handles) - 1
+
+    def move_handle(self, i, x, y):
+        self.handles[i].move(x, y)
+        self.map.move_point(i, *self.canv2point(x, y))
+        self.move_curve()
+
+    def move_curve(self):
+        xs = np.arange(0.0, 1.01, 0.01)
+        f = np.vectorize(self.map.map)
+        ys = f(xs)
+        for i in range(len(xs) - 1):
+            p1 = self.point2canv(xs[i], ys[i])
+            p2 = self.point2canv(xs[i+1], ys[i+1])
+            coord = (*p1, *p2)
+            self.ref.coords(self.curve_refs[i], coord)
+
+    def drop_handle(self, i):
+        self.handles[i].destroy()
+        self.handles.remove(self.handles[i])
+        self.map.drop_point(i)
+        self.move_curve()
+
+    def update(self):
+        for a in self.attached:
+            a.update(self.map.map)

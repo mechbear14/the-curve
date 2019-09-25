@@ -41,12 +41,18 @@ class MapFn:
 
     def add_point(self, x, y):
         self.points.append(Point(x, y))
+        self.xs.append(x)
+        self.ys.append(y)
 
     def move_point(self, i, x, y):
         self.points[i].update(x, y)
+        self.xs[i] = x
+        self.ys[i] = y
 
     def drop_point(self, i):
         try:
             self.points.remove(self.points[i])
+            self.xs.remove(self.xs[i])
+            self.ys.remove(self.ys[i])
         except ValueError:
             print(f"Point {i} is not in the points")
