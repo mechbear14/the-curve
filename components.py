@@ -214,7 +214,3 @@ class Canvas:
         for a in self.attached:
             a.update(self.map.map)
 
-
-class ImageBox:
-    def __init__(self):
-        pass
