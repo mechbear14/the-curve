@@ -1,5 +1,4 @@
-from components import Canvas, Ruler
-from calculation import Point, MapFn
+from modules.core import Point, MapFn, Canvas, Ruler
 from services import ImageBox
 import tkinter as tk
 from tkinter import filedialog

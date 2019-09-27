@@ -4,10 +4,8 @@ class Point:
         self.y = y
 
     def update(self, x, y):
-        if x is not None:
-            self.x = x
-        if y is not None:
-            self.y = y
+        self.x = x
+        self.y = y
 
     def get(self):
         return self.x, self.y
@@ -56,3 +54,5 @@ class MapFn:
             self.ys.remove(self.ys[i])
         except ValueError:
             print(f"Point {i} is not in the points")
+
+

@@ -1,4 +1,4 @@
-from calculation import Point, MapFn
+from modules.core import Point, MapFn
 from PIL import Image, ImageTk
 import numpy as np
 
