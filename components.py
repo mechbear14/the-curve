@@ -7,7 +7,7 @@ from PIL import Image
 
 class ImageComponent:
     def __init__(self, parent):
-        self.image_canvas = tk.Canvas(parent, width=400, height=400, background="#008080")
+        self.image_canvas = tk.Canvas(parent, width=400, height=400)
         self.image_canvas.pack()
         self.top_level = None
 
@@ -74,16 +74,15 @@ class ChannelSelectComponent:
 
     def update(self, value):
         map_func = self.top_level.image_container.select_channel(value)
-        print(map_func)
         update_func = self.top_level.image_container.render
         self.top_level.curve.bind(map_func, update_func)
 
 
 class CurveEditorComponent:
     def __init__(self, parent):
-        self.ruler_v = tk.Canvas(parent, width=50, height=350, background="#00c800")
-        self.ruler_h = tk.Canvas(parent, width=350, height=50, background="#0000c8")
-        self.canvas = tk.Canvas(parent, width=350, height=350, background="#c8c800")
+        self.ruler_v = tk.Canvas(parent, width=50, height=350, background="#ffffff")
+        self.ruler_h = tk.Canvas(parent, width=350, height=50, background="#ffffff")
+        self.canvas = tk.Canvas(parent, width=350, height=350, background="#ffffff")
         self.ruler_v.grid(row=0, column=0)
         self.canvas.grid(row=0, column=1)
         self.ruler_h.grid(row=1, column=1)
