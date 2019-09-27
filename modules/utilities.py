@@ -18,9 +18,17 @@ def point2canv(point, canvas):
 
 
 def func2plot(map_func, canvas):
-    xs = np.arange(0.0, 0.01, 1.01)
+    xs = np.arange(0.0, 1.01, 0.01)
     ys = map_func(xs)
     cs = []
     for i in range(len(xs)):
-        cs.append(point2canv((xs, ys), canvas))
+        cs.append(point2canv((xs[i], ys[i]), canvas))
     return cs
+
+
+def fit2canvas(width, height, canvas_width, canvas_height):
+    attempt = height / (width / canvas_width) > canvas_height
+    if attempt:
+        return round(canvas_width / (height / canvas_height)), canvas_height
+    else:
+        return canvas_width, round(height / (width / canvas_width))

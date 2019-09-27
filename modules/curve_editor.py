@@ -1,5 +1,5 @@
-from utilities import canv2point, point2canv, func2plot
-from core import MapFn
+from .utilities import canv2point, point2canv, func2plot
+from .core import Point, MapFn
 import numpy as np
 from math import fabs
 import tkinter as tk
@@ -32,13 +32,13 @@ class Curve:
         self.canvas = canvas
         self.refs = []
 
-        cs = func2plot(map_func, canvas)
+        cs = func2plot(map_func.map_v, canvas)
         for i in range(len(cs) - 1):
             coord = (*cs[i], *cs[i+1])
             self.refs.append(canvas.create_line(coord, fill="#800080", width=3))
 
     def move(self):
-        cs = func2plot(self.func, self.canvas)
+        cs = func2plot(self.func.map_v, self.canvas)
         for i in range(len(cs) - 1):
             coord = (*cs[i], *cs[i+1])
             self.canvas.coords(self.refs[i], coord)
@@ -75,7 +75,7 @@ class Ruler:
                 self.normal_canvas.create_line(coord, width=2, fill="#808080")
 
         x_loc = self.mapped_canvas.winfo_width() / 2
-        y_locs = self.func.map_v(xs) * self.mapped_canvas.winfo_height()
+        y_locs = (1 - self.func.map_v(xs)) * self.mapped_canvas.winfo_height()
         for line_id in range(21):
             if line_id % 5 == 0:
                 coord = (x_loc, y_locs[line_id])
@@ -87,7 +87,7 @@ class Ruler:
     def update(self):
         xs = np.arange(0.0, 1.01, 0.05)
         x_loc = self.mapped_canvas.winfo_width() / 2
-        y_locs = self.func.map_v(xs) * self.mapped_canvas.winfo_height()
+        y_locs = (1 - self.func.map_v(xs)) * self.mapped_canvas.winfo_height()
         for line_id in range(21):
             if line_id % 5 == 0:
                 coord = (x_loc, y_locs[line_id])
@@ -106,18 +106,21 @@ class CurveEditor:
         self.bound = MapFn()
         self.update_func = None
         self.handles = [Handle(p, self.canvas) for p in self.bound.get_points()]
+        self.draw_grid()
         self.curve = Curve(self.bound, self.canvas)
         self.ruler = Ruler(self.bound, ruler_in, ruler_out)
         self.dragging = None
 
-        self.draw_grid()
         self.canvas.bind("<Button-1>", self.on_mouse_down)
         self.canvas.bind("<Button-3>", self.on_mouse_right)
         self.canvas.bind("<ButtonRelease-1>", self.on_mouse_up)
 
-    def bind(self, map_func, update_fn):
+    def bind(self, map_func, update_fn=None):
         self.bound = map_func
-        self.update_func = update_fn
+        if update_fn is not None:
+            self.update_func = update_fn
+        for h in self.handles:
+            h.destroy()
         self.handles = [Handle(p, self.canvas) for p in map_func.get_points()]
         self.curve.set_func(map_func)
         self.ruler.set_func(map_func)
@@ -158,8 +161,11 @@ class CurveEditor:
         self.bound.move_point(self.dragging, *canv2point((event.x, event.y), self.canvas))
         self.handles[self.dragging].move(event.x, event.y)
         self.curve.move()
+        self.ruler.update()
 
     def on_mouse_up(self, event):
+        if self.update_func is not None:
+            self.update_func()
         self.dragging = None
         self.canvas.unbind("<B1-Motion>")
 
@@ -168,9 +174,10 @@ class CurveEditor:
         if on_handle > -1:
             self.drop_handle(on_handle)
 
-    def add_handle(self, x, y):
-        new_point = canv2point(x, y)
-        self.bound.add_point(*new_point)
+    def add_handle(self, mouse_x, mouse_y):
+        x, y = canv2point((mouse_x, mouse_y), self.canvas)
+        new_point = Point(x, y)
+        self.bound.add_point(*new_point.get())
         self.handles.append(Handle(new_point, self.canvas))
         self.curve.move()
         self.ruler.update()

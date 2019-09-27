@@ -1,4 +1,4 @@
-from modules.core import Point, MapFn
+from .core import Point, MapFn
 import numpy as np
 from math import fabs
 
