@@ -1,21 +1,15 @@
+from utilities import canv2point, point2canv, func2plot
+from core import MapFn
 import numpy as np
 from math import fabs
 import tkinter as tk
 
 
 class Handle:
-    def __init__(self, canvas, x, y):
+    def __init__(self, point, canvas):
+        self.point = point
         self.canvas = canvas
-        self.x = x
-        self.y = y
-        self.ref = None
-
-        self.render()
-
-    def get(self):
-        return self.x, self.y
-
-    def render(self):
+        self.x, self.y = point2canv(point.get(), canvas)
         coord = (self.x - 5, self.y - 5, self.x + 5, self.y + 5)
         self.ref = self.canvas.create_rectangle(coord, fill="", outline="#c80000", width="2")
 
@@ -28,188 +22,164 @@ class Handle:
     def destroy(self):
         self.canvas.delete(self.ref)
 
+    def is_on_handle(self, mouse_x, mouse_y):
+        return fabs(mouse_x - self.x) < 10 and fabs(mouse_y - self.y) < 10
+
+
+class Curve:
+    def __init__(self, map_func, canvas):
+        self.func = map_func
+        self.canvas = canvas
+        self.refs = []
+
+        cs = func2plot(map_func, canvas)
+        for i in range(len(cs) - 1):
+            coord = (*cs[i], *cs[i+1])
+            self.refs.append(canvas.create_line(coord, fill="#800080", width=3))
+
+    def move(self):
+        cs = func2plot(self.func, self.canvas)
+        for i in range(len(cs) - 1):
+            coord = (*cs[i], *cs[i+1])
+            self.canvas.coords(self.refs[i], coord)
+
+    def is_on_curve(self, mouse_x, mouse_y):
+        x, y = canv2point((mouse_x, mouse_y), self.canvas)
+        yy = self.func.map(x)
+        cx, cy = point2canv((x, yy), self.canvas)
+        return fabs(mouse_y - cy) < 10
+
+    def set_func(self, map_func):
+        self.func = map_func
+        self.move()
+
 
 class Ruler:
-    def __init__(self, normal_canvas, mapped_canvas):
+    def __init__(self, map_func, normal_canvas, mapped_canvas):
+        self.func = map_func
         self.normal_canvas = normal_canvas
         self.mapped_canvas = mapped_canvas
-        self.normal = np.arange(0.0, 1.01, 0.05)
-        self.mapped = self.normal
-        self.render_horizontal(self.normal_canvas, self.normal)
-        self.render_vertical(self.mapped_canvas, self.mapped)
+        self.refs = []
 
-    def map(self, map_func):
-        f = np.vectorize(map_func)
-        self.mapped = f(self.normal)
+        xs = np.arange(0.0, 1.01, 0.05)
 
-    def render_horizontal(self, canvas, array):
-        width, height = canvas.winfo_width(), canvas.winfo_height()
-        canvas.create_rectangle((0, 0, width, height), fill="#ffffff")
-        y_loc = height / 2
+        # TODO: Refactor these three loops
+        x_locs = xs * self.normal_canvas.winfo_width()
+        y_loc = self.normal_canvas.winfo_height() / 2
         for line_id in range(21):
-            x_loc = array[line_id] * width
             if line_id % 5 == 0:
-                coord = (x_loc, y_loc)
-                canvas.create_text(coord, text=line_id * 5, fill="#808080")
+                coord = (x_locs[line_id], y_loc)
+                self.normal_canvas.create_text(coord, text=line_id * 5, fill="#808080")
             else:
-                coord = (x_loc, y_loc - 2, x_loc, y_loc + 2)
-                canvas.create_line(coord, width=2, fill="#808080")
+                coord = (x_locs[line_id], y_loc - 2, x_locs[line_id], y_loc + 2)
+                self.normal_canvas.create_line(coord, width=2, fill="#808080")
 
-    def render_vertical(self, canvas, array):
-        width, height = canvas.winfo_width(), canvas.winfo_height()
-        canvas.create_rectangle((0, 0, width, height), fill="#ffffff")
-        x_loc = width / 2
+        x_loc = self.mapped_canvas.winfo_width() / 2
+        y_locs = self.func.map_v(xs) * self.mapped_canvas.winfo_height()
         for line_id in range(21):
-            y_loc = (1 - array[line_id]) * height
             if line_id % 5 == 0:
-                coord = (x_loc, y_loc)
-                canvas.create_text(coord, text=line_id * 5, fill="#808080")
+                coord = (x_loc, y_locs[line_id])
+                self.refs.append(self.mapped_canvas.create_text(coord, text=line_id * 5, fill="#808080"))
             else:
-                coord = (x_loc - 2, y_loc, x_loc + 2, y_loc)
-                canvas.create_line(coord, width=2, fill="#808080")
+                coord = (x_loc - 2, y_locs[line_id], x_loc + 2, y_locs[line_id])
+                self.refs.append(self.mapped_canvas.create_line(coord, width=2, fill="#808080"))
 
-    def update(self, map_func):
-        self.map(map_func)
-        self.mapped_canvas.delete(tk.ALL)
-        self.render_vertical(self.mapped_canvas, self.mapped)
+    def update(self):
+        xs = np.arange(0.0, 1.01, 0.05)
+        x_loc = self.mapped_canvas.winfo_width() / 2
+        y_locs = self.func.map_v(xs) * self.mapped_canvas.winfo_height()
+        for line_id in range(21):
+            if line_id % 5 == 0:
+                coord = (x_loc, y_locs[line_id])
+            else:
+                coord = (x_loc - 2, y_locs[line_id], x_loc + 2, y_locs[line_id])
+            self.mapped_canvas.coords(self.refs[line_id], coord)
 
-
-class Canvas:
-    def __init__(self, ref, map_func):
-        self.ref = ref
-        self.width = self.ref.winfo_width() - 2
-        self.height = self.ref.winfo_height() - 2
-        self.map = map_func
-        self.handles = list(map(self.point2handle, self.map.get_points()))
-        self.curve_refs = []
-        self.dragging = False
-        self.dragging_handle_id = None
-        self.attached = []
-
-        self.draw_grid()
-        self.draw_curve()
-        self.draw_handles()
-
-        self.ref.bind("<Button-1>", self.on_mouse_down)
-        self.ref.bind("<Button-3>", self.on_mouse_right)
-        self.ref.bind("<ButtonRelease-1>", self.on_mouse_up)
-
-    def attach(self, obj):
-        self.attached.append(obj)
+    def set_func(self, map_func):
+        self.func = map_func
         self.update()
 
-    def canv2point(self, x, y):
-        px = x / self.width
-        py = 1 - y / self.height
-        return px, py
 
-    def point2canv(self, x, y):
-        cx = x * self.width
-        cy = (1 - y) * self.height
-        return cx, cy
+class CurveEditor:
+    def __init__(self, canvas, ruler_in, ruler_out):
+        self.canvas = canvas
+        self.bound = MapFn()
+        self.update_func = None
+        self.handles = [Handle(p, self.canvas) for p in self.bound.get_points()]
+        self.curve = Curve(self.bound, self.canvas)
+        self.ruler = Ruler(self.bound, ruler_in, ruler_out)
+        self.dragging = None
 
-    def point2handle(self, point):
-        handle_xy = self.point2canv(*point.get())
-        return Handle(self.ref, *handle_xy)
+        self.draw_grid()
+        self.canvas.bind("<Button-1>", self.on_mouse_down)
+        self.canvas.bind("<Button-3>", self.on_mouse_right)
+        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_up)
 
-    def draw_grid(self):
-        self.ref.create_rectangle((1, 1, self.width - 1, self.height - 1), fill="#ffffff")
-        small_space = self.width / 20
-        for line_id in range(21):
-            x_loc = line_id * small_space
-            coord = (x_loc, 0, x_loc, self.height)
-            line_width = 2 if line_id % 5 == 0 else 1
-            self.ref.create_line(coord, fill="#c8c8c8", width=line_width)
-            y_loc = line_id * small_space
-            coord = (0, y_loc, self.width, y_loc)
-            line_width = 2 if line_id % 5 == 0 else 1
-            self.ref.create_line(coord, fill="#c8c8c8", width=line_width)
+    def bind(self, map_func, update_fn):
+        self.bound = map_func
+        self.update_func = update_fn
+        self.handles = [Handle(p, self.canvas) for p in map_func.get_points()]
+        self.curve.set_func(map_func)
+        self.ruler.set_func(map_func)
 
-    def draw_curve(self):
-        xs = np.arange(0.0, 1.01, 0.01)
-        f = np.vectorize(self.map.map)
-        ys = f(xs)
-        for i in range(len(xs) - 1):
-            p1 = self.point2canv(xs[i], ys[i])
-            p2 = self.point2canv(xs[i+1], ys[i+1])
-            coord = (*p1, *p2)
-            self.curve_refs.append(self.ref.create_line(coord, fill="#800080", width=3))
+    def reset(self):
+        self.bind(MapFn(), None)
 
-    def draw_handles(self):
-        for handle in self.handles:
-            handle.render()
-
-    def is_on_curve(self, mx, my):
-        x, y = self.canv2point(mx, my)
-        yy = self.map.map(x)
-        cx, cy = self.point2canv(x, yy)
-        return fabs(my - cy) < 10
-
-    def on_which_handle(self, mx, my):
+    def on_which_handle(self, mouse_x, mouse_y):
         for i, handle in enumerate(self.handles):
-            hx, hy = handle.get()
-            on_this_handle = fabs(mx - hx) < 10 and fabs(my - hy) < 10
-            if on_this_handle:
+            if handle.is_on_handle(mouse_x, mouse_y):
                 return i
         return -1
 
+    def draw_grid(self):
+        width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
+        small_space = width / 20
+        for line_id in range(21):
+            x_loc = line_id * small_space
+            coord = (x_loc, 0, x_loc, height)
+            line_width = 2 if line_id % 5 == 0 else 1
+            self.canvas.create_line(coord, fill="#c8c8c8", width=line_width)
+            y_loc = line_id * small_space
+            coord = (0, y_loc, width, y_loc)
+            line_width = 2 if line_id % 5 == 0 else 1
+            self.canvas.create_line(coord, fill="#c8c8c8", width=line_width)
+
     def on_mouse_down(self, event):
-        on_curve = self.is_on_curve(event.x, event.y)
+        on_curve = self.curve.is_on_curve(event.x, event.y)
         on_handle = self.on_which_handle(event.x, event.y)
         if on_curve:
             if on_handle > -1:
-                self.dragging_handle_id = on_handle
+                self.dragging = on_handle
             else:
-                self.dragging_handle_id = self.add_handle(event.x, event.y)
-
-            self.dragging = True
-            self.ref.bind("<B1-Motion>", self.on_mouse_move)
+                self.dragging = self.add_handle(event.x, event.y)
+            self.canvas.bind("<B1-Motion>", self.on_mouse_move)
 
     def on_mouse_move(self, event):
-        self.move_handle(self.dragging_handle_id, event.x, event.y)
-        self.move_curve()
-        self.update()
+        self.bound.move_point(self.dragging, *canv2point((event.x, event.y), self.canvas))
+        self.handles[self.dragging].move(event.x, event.y)
+        self.curve.move()
 
     def on_mouse_up(self, event):
-        self.dragging = False
-        self.dragging_handle_id = None
-        self.ref.unbind("<B1-Motion>")
+        self.dragging = None
+        self.canvas.unbind("<B1-Motion>")
 
     def on_mouse_right(self, event):
         on_handle = self.on_which_handle(event.x, event.y)
         if on_handle > -1:
             self.drop_handle(on_handle)
-        self.update()
 
     def add_handle(self, x, y):
-        new_handle = Handle(self.ref, x, y)
-        self.handles.append(new_handle)
-        new_point = self.canv2point(x, y)
-        self.map.add_point(*new_point)
+        new_point = canv2point(x, y)
+        self.bound.add_point(*new_point)
+        self.handles.append(Handle(new_point, self.canvas))
+        self.curve.move()
+        self.ruler.update()
         return len(self.handles) - 1
-
-    def move_handle(self, i, x, y):
-        self.handles[i].move(x, y)
-        self.map.move_point(i, *self.canv2point(x, y))
-        self.move_curve()
-
-    def move_curve(self):
-        xs = np.arange(0.0, 1.01, 0.01)
-        f = np.vectorize(self.map.map)
-        ys = f(xs)
-        for i in range(len(xs) - 1):
-            p1 = self.point2canv(xs[i], ys[i])
-            p2 = self.point2canv(xs[i+1], ys[i+1])
-            coord = (*p1, *p2)
-            self.ref.coords(self.curve_refs[i], coord)
 
     def drop_handle(self, i):
         if len(self.handles) > 2:
             self.handles[i].destroy()
             self.handles.remove(self.handles[i])
-            self.map.drop_point(i)
-            self.move_curve()
-
-    def update(self):
-        for a in self.attached:
-            a.update(self.map.map)
+            self.bound.drop_point(i)
+            self.curve.move()
+            self.ruler.update()

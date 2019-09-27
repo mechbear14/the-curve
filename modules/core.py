@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class Point:
     def __init__(self, x, y):
         self.x = x
@@ -12,10 +15,13 @@ class Point:
 
 
 class MapFn:
-    def __init__(self, points):
+    def __init__(self, points=None):
+        if points is None:
+            points = [Point(0, 0), Point(1, 1)]
         self.points = points
         self.xs = list(map(lambda p: p.get()[0], points))
         self.ys = list(map(lambda p: p.get()[1], points))
+        self.map_v = np.vectorize(self.map)
 
     def map(self, x):
         result = 0
