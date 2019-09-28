@@ -173,6 +173,8 @@ class CurveEditor:
         on_handle = self.on_which_handle(event.x, event.y)
         if on_handle > -1:
             self.drop_handle(on_handle)
+        if self.update_func is not None:
+            self.update_func()
 
     def add_handle(self, mouse_x, mouse_y):
         x, y = canv2point((mouse_x, mouse_y), self.canvas)

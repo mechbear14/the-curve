@@ -60,5 +60,3 @@ class MapFn:
             self.ys.remove(self.ys[i])
         except ValueError:
             print(f"Point {i} is not in the points")
-
-

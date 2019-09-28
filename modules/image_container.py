@@ -16,17 +16,6 @@ class ImageObject:
 
     def update(self, to_update):
         mapped = []
-        # if self.selected == 3:
-        #     for o in to_update:
-        #         norm = o / 255
-        #         mapped.append(self.curves[3].map_v(norm) * 255)
-        # else:
-        #     for i, o in enumerate(to_update):
-        #         if i != self.selected:
-        #             mapped.append(o)
-        #         else:
-        #             norm = o / 255
-        #             mapped.append(self.curves[3].map_v(self.curves[self.selected].map_v(norm)) * 255)
         for i, channel in enumerate(to_update):
             norm = channel / 255
             mapped.append(self.curves[3].map_v(self.curves[i].map_v(norm)) * 255)
